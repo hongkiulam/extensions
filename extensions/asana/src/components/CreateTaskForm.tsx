@@ -1,7 +1,7 @@
-import { Action, ActionPanel, Clipboard, Form, Icon, useNavigation, Toast, getPreferenceValues } from "@raycast/api";
+import { Action, ActionPanel, Clipboard, Form, Icon, useNavigation, Toast, showToast } from "@raycast/api";
 import { format } from "date-fns";
-import { FormValidation, getAvatarIcon, useForm } from "@raycast/utils";
-import { useMemo } from "react";
+import { FormValidation, getAvatarIcon, useCachedState, useForm } from "@raycast/utils";
+import { useMemo, useEffect } from "react";
 import { useWorkspaces } from "../hooks/useWorkspaces";
 import { useProjects } from "../hooks/useProjects";
 import { useUsers } from "../hooks/useUsers";
@@ -21,23 +21,14 @@ export default function CreateTaskForm(props: {
 }) {
   const { push } = useNavigation();
 
-  const { handleSubmit, itemProps, values, focus, setValue } = useForm<TaskFormValues>({
+  const [lastWorkspace, setLastWorkspace] = useCachedState<string>("last-workspace");
+
+  const { handleSubmit, itemProps, values, focus, reset } = useForm<TaskFormValues>({
     async onSubmit(values) {
-      const toast = new Toast({ style: Toast.Style.Animated, title: "Creating task" });
-      await toast.show();
+      const toast = await showToast({ style: Toast.Style.Animated, title: "Creating task" });
 
       try {
-        const { signature } = getPreferenceValues<{ signature: boolean }>();
-
-        let htmlNotes = `<body>${values.description}`;
-        if (signature) {
-          if (values.description) {
-            htmlNotes += "\n--\n";
-          }
-
-          htmlNotes += `Created via <a href="https://www.raycast.com/?ref=signatureAsana">Raycast</a>`;
-        }
-        htmlNotes += "</body>";
+        const htmlNotes = `<body>${values.description}</body>`;
 
         const customFieldsEntries = Object.entries(values).filter(
           ([key, value]) => key.startsWith("field-") && value !== ""
@@ -54,6 +45,7 @@ export default function CreateTaskForm(props: {
           ...(values.projects && values.projects.length > 0 ? { projects: values.projects } : {}),
           ...(values.description ? { html_notes: htmlNotes } : {}),
           ...(values.assignee ? { assignee: values.assignee } : {}),
+          ...(values.start_date ? { start_on: format(values.start_date, "yyyy-MM-dd") } : {}),
           ...(values.due_date ? { due_on: format(values.due_date, "yyyy-MM-dd") } : {}),
         });
 
@@ -76,9 +68,15 @@ export default function CreateTaskForm(props: {
           },
         };
 
-        setValue("name", "");
-        setValue("description", "");
-        setValue("due_date", undefined!);
+        reset({
+          name: "",
+          description: "",
+          due_date: null,
+          // keep the rest
+          assignee: values.assignee,
+          workspace: values.workspace,
+          projects: values.projects,
+        });
 
         focus("name");
       } catch (error) {
@@ -92,19 +90,24 @@ export default function CreateTaskForm(props: {
       name: FormValidation.Required,
     },
     initialValues: {
-      workspace: props.draftValues?.workspace || props.workspace,
+      workspace: props.draftValues?.workspace || props.workspace || lastWorkspace,
       projects: props.draftValues?.projects,
       name: props.draftValues?.name,
       description: props.draftValues?.description,
       assignee: props.draftValues?.assignee || props.assignee,
+      start_date: props.draftValues?.start_date,
       due_date: props.draftValues?.due_date,
     },
   });
 
-  const { data: workspaces } = useWorkspaces();
-  const { data: allProjects } = useProjects(values.workspace);
-  const { data: users } = useUsers(values.workspace);
-  const { data: me } = useMe();
+  useEffect(() => {
+    setLastWorkspace(values.workspace);
+  }, [values.workspace]);
+
+  const { data: workspaces, isLoading: isLoadingWorkspaces } = useWorkspaces();
+  const { data: allProjects, isLoading: isLoadingProjects } = useProjects(values.workspace);
+  const { data: users, isLoading: isLoadingUsers } = useUsers(values.workspace);
+  const { data: me, isLoading: isLoadingMe } = useMe();
 
   const customFields = useMemo(() => {
     const selectedProjects = allProjects?.filter((project) => {
@@ -112,13 +115,13 @@ export default function CreateTaskForm(props: {
     });
 
     return selectedProjects
-      ?.map((project) => {
-        return project.custom_field_settings.map((setting) => setting.custom_field);
-      })
+      ?.filter((project) => project.custom_field_settings && project.custom_field_settings.length > 0)
+      ?.map((project) => project.custom_field_settings?.map((setting) => setting.custom_field))
       .flat();
   }, [values.projects]);
 
   const hasCustomFields = customFields && customFields.length > 0;
+  const selectedWorkspace = workspaces?.find((workspace) => values.workspace === workspace.gid);
 
   return (
     <Form
@@ -128,6 +131,7 @@ export default function CreateTaskForm(props: {
         </ActionPanel>
       }
       enableDrafts={!props.fromEmptyView}
+      isLoading={isLoadingWorkspaces || isLoadingProjects || isLoadingUsers || isLoadingMe}
     >
       <Form.Dropdown title="Workspace" storeValue {...itemProps.workspace}>
         {workspaces?.map((workspace) => {
@@ -135,23 +139,18 @@ export default function CreateTaskForm(props: {
         })}
       </Form.Dropdown>
 
-      {allProjects && allProjects.length > 0 ? (
-        <Form.TagPicker title="Projects" placeholder="Select one or more projects" storeValue {...itemProps.projects}>
-          {allProjects.map((project) => {
-            return (
-              <Form.TagPicker.Item
-                key={project.gid}
-                icon={getProjectIcon(project)}
-                title={project.name}
-                value={project.gid}
-              />
-            );
-          })}
-        </Form.TagPicker>
-      ) : (
-        // Provide a dummy form element to prevent any flickering
-        <Form.TagPicker id="dummy-projects" title="Projects" />
-      )}
+      <Form.TagPicker title="Projects" placeholder="Select one or more projects" storeValue {...itemProps.projects}>
+        {allProjects?.map((project) => {
+          return (
+            <Form.TagPicker.Item
+              key={project.gid}
+              icon={getProjectIcon(project)}
+              title={project.name}
+              value={project.gid}
+            />
+          );
+        })}
+      </Form.TagPicker>
 
       <Form.Separator />
 
@@ -159,26 +158,23 @@ export default function CreateTaskForm(props: {
 
       <Form.TextArea title="Description" placeholder="Add more detail to this task" {...itemProps.description} />
 
-      {users && users?.length > 0 ? (
-        <Form.Dropdown title="Assignee" storeValue {...itemProps.assignee}>
-          <Form.Dropdown.Item title="Unassigned" value="" icon={Icon.Person} />
+      <Form.Dropdown title="Assignee" storeValue {...itemProps.assignee}>
+        <Form.Dropdown.Item title="Unassigned" value="" icon={Icon.Person} />
 
-          {users.map((user) => {
-            return (
-              <Form.Dropdown.Item
-                key={user.gid}
-                value={user.gid}
-                title={user.gid === me?.gid ? `${user.name} (me)` : user.name}
-                icon={getAvatarIcon(user.name)}
-              />
-            );
-          })}
-        </Form.Dropdown>
-      ) : (
-        // Provide a dummy form element to prevent any flickering
-        <Form.Dropdown id="dummy-assignee" title="Assignee" />
-      )}
-
+        {users?.map((user) => {
+          return (
+            <Form.Dropdown.Item
+              key={user.gid}
+              value={user.gid}
+              title={user.gid === me?.gid ? `${user.name} (me)` : user.name}
+              icon={getAvatarIcon(user.name)}
+            />
+          );
+        })}
+      </Form.Dropdown>
+      {selectedWorkspace?.is_organization ? (
+        <Form.DatePicker title="Start Date" type={Form.DatePicker.Type.Date} {...itemProps.start_date} />
+      ) : null}
       <Form.DatePicker title="Due Date" type={Form.DatePicker.Type.Date} {...itemProps.due_date} />
 
       {hasCustomFields

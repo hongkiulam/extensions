@@ -1,5 +1,127 @@
 # `Easydict` Changelog
 
+## [v2.9.0] - 2023-05-26
+
+### ✨ New Features
+
+- Added OCR screenshot translation command, thanks to [aidevjoe](https://github.com/aidevjoe)'s PR.
+
+![](https://github-production-user-asset-6210df.s3.amazonaws.com/25194972/238993145-9dbe2fbb-8407-49bc-8909-adb0515e850e.png)
+
+## [v2.8.2] - 2023-04-25
+
+### 🐞 Fixes
+
+- Fixed the issue that OpenAI translation may lose the first character.
+- Fixed the issue that OpenAI does not enable proxy by default.
+
+## [v2.8.1] - 2023-03-28
+
+### 🐞 Fixes
+
+- Fixed the crash problem when requesting OpenAI translation.
+
+## [v2.8.0] - 2023-03-17
+
+### ✨ Features
+
+- Support OpenAI ChatGPT translation.
+
+![OpenAI](https://user-images.githubusercontent.com/25194972/225886686-b99e5a97-6269-489d-b0bb-40be6d7d1d32.png)
+
+## [v2.7.3] - 2023-02-28
+
+### 💎 Improvement
+
+- When using Easydict as Fallback Command, use the user input text as the query word (not the selected text).
+
+## [v2.7.2] - 2023-01-17
+
+### 🐞 Fixes
+
+- Fixed Bing translation failed.
+
+## [v2.7.1] - 2023-01-08
+
+### 💎 Improvement
+
+- Improved the way to get the system proxy.
+
+### 🐞 Fixes
+
+- Fixed some known issues.
+
+## [v2.7.0] - 2022-12-16
+
+### 💎 Improvement
+
+- Improved the display of word exam collection level, use tag label display.
+
+### 🐞 Fixes
+
+- Fixed the problem that the input text was not displayed when querying from arguments.
+
+## [v2.6.2] - 2022-11-02
+
+### 🐞 Fixes
+
+- Fixed unexpected error when DeepL translation quota is exceeded.
+
+## [v2.6.1] - 2022-10-26
+
+### 💎 Improvement
+
+- Optimized code.
+- Updated README.
+
+### 🐞 Fixes
+
+- Fixed the problem that the latest Raycast 1.42.0 version will cause the extension to crash when arguments is empty.
+
+## [v2.6.0] - 2022-10-18
+
+### ✨ New
+
+- Added support for [Arguments](https://developers.raycast.com/information/arguments).
+- Added support for 25 languages, including Ukrainian, total 48 languages.
+
+![arguments-1666060638](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/arguments-1666060638.png)
+
+![hello-1666060655](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/hello-1666060655.png)
+
+![Ukrainian-1666061433](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/Ukrainian-1666061433.png)
+
+### 💎 Improvement
+
+- Improved the display effect of the details page when translating multiple lines of text.
+- Added `Copy Text` and open the web page query action to the details page.
+
+### 🐞 Fixes
+
+- Fixed some known issues.
+
+## [v2.5.0] - 2022-10-12
+
+✨ New
+
+- Added support for Youdao Modern Chinese Dictionary.
+
+![yi-1665582552](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/yi-1665582552.png)
+
+![ai-1665582591](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/ai-1665582591.png)
+
+![ai-1665582690](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/ai-1665582690.png)
+
+💎 Improvement
+
+- Improved the action list, changed the default return action to `Copy Text`.
+- Changed Linguee to support system proxy by default.
+- Changed all lists to support 'Show More Details'.
+
+🐞 Fix
+
+- Fixed many known issues.
+
 ## [v2.4.1] - 2022-10-02
 
 ### 💎 Improvements

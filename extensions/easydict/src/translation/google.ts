@@ -2,25 +2,24 @@
  * @author: tisfeng
  * @createTime: 2022-08-05 16:09
  * @lastEditor: tisfeng
- * @lastEditTime: 2022-10-02 09:36
+ * @lastEditTime: 2023-03-14 21:31
  * @fileName: google.ts
  *
  * Copyright (c) 2022 by tisfeng, All Rights Reserved.
  */
 
-import googleTranslateApi from "@vitalets/google-translate-api";
-import axios, { AxiosResponse } from "axios";
+import { translate as googleTranslateApi } from "@vitalets/google-translate-api";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import * as cheerio from "cheerio";
 import querystring from "node:querystring";
 import { getProxyAgent, getSystemProxyURL, httpsAgent } from "../axiosConfig";
 import { userAgent } from "../consts";
+import { DetectedLangModel, LanguageDetectType } from "../detectLanguage/types";
 import { QueryWordInfo } from "../dictionary/youdao/types";
+import { autoDetectLanguageItem, englishLanguageItem } from "../language/consts";
 import { getGoogleLangCode, getYoudaoLangCodeFromGoogleCode } from "../language/languages";
-import { QueryTypeResult, RequestErrorInfo, TranslationType } from "../types";
+import { GoogleTranslateResult, QueryTypeResult, RequestErrorInfo, TranslationType } from "../types";
 import { getTypeErrorInfo } from "../utils";
-import { DetectedLangModel, LanguageDetectType } from "./../detectLanauge/types";
-import { autoDetectLanguageItem, englishLanguageItem } from "./../language/consts";
-import { GoogleTranslateResult } from "./../types";
 
 console.log(`enter google.ts`);
 
@@ -46,7 +45,14 @@ async function googleRPCTranslate(queryWordInfo: QueryWordInfo, signal?: AbortSi
   const httpsAgent = await getProxyAgent();
   return new Promise((resolve, reject) => {
     const startTime = new Date().getTime();
-    googleTranslateApi(word, { from: fromLanguageId, to: toLanguageId }, { signal, agent: httpsAgent })
+    googleTranslateApi(word, {
+      from: fromLanguageId,
+      to: toLanguageId,
+      fetchOptions: {
+        agent: httpsAgent,
+        signal: signal,
+      },
+    })
       .then((res) => {
         console.warn(`---> Google RPC translate: ${res.text}, cost ${new Date().getTime() - startTime} ms`);
         const result: QueryTypeResult = {
@@ -88,10 +94,10 @@ export function googleDetect(text: string, signal = axios.defaults.signal): Prom
   };
 
   return new Promise((resolve, reject) => {
-    googleRPCTranslate(queryWordInfo, signal)
+    googleRPCTranslate(queryWordInfo, signal as AbortSignal)
       .then((googleTypeResult) => {
         const googleResult = googleTypeResult.result as GoogleTranslateResult;
-        const googleLanguageId = googleResult.from.language.iso;
+        const googleLanguageId = googleResult.raw.ld_result.srclangs[0];
         const youdaoLanguageId = getYoudaoLangCodeFromGoogleCode(googleLanguageId);
         console.warn(`---> Google detect language: ${googleLanguageId}, youdaoId: ${youdaoLanguageId}`);
         console.log(`google detect cost time: ${new Date().getTime() - startTime} ms`);
@@ -146,9 +152,15 @@ export async function googleWebTranslate(queryWordInfo: QueryWordInfo, signal?: 
   const url = `https://translate.google.com/m?${querystring.stringify(data)}`;
   console.log(`---> google web url: ${url}`); // https://translate.google.com/m?sl=auto&tl=zh-CN&hl=zh-CN&q=good
 
+  const config: AxiosRequestConfig = {
+    headers,
+    signal,
+    httpsAgent,
+  };
+
   return new Promise((resolve, reject) => {
     axios
-      .get(url, { headers, signal, httpsAgent })
+      .get(url, config)
       .then((res: AxiosResponse) => {
         const hmlt = res.data;
         const $ = cheerio.load(hmlt);

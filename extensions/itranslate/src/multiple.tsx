@@ -6,6 +6,7 @@ import {
   Action,
   Icon,
   openCommandPreferences,
+  environment,
 } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { TransAPIErrCode } from "./common/const";
@@ -56,17 +57,20 @@ export default function Command() {
       .then((selectedText) => {
         const text = selectedText.trim();
         if (text.length > 0) {
-          updateInputState(text);
-          updateInputTempState(text);
+          onInputChange(text, true);
         }
       })
       .catch((e) => e);
   }
 
-  function onInputChange(queryText: string) {
+  function onInputChange(queryText: string, immediately?: boolean) {
     updateLoadingState(false);
     updateInputState(queryText);
     clearTimeout(delayFetchTranslateAPITimer);
+    if (immediately) {
+      updateInputTempState(queryText);
+      return;
+    }
     delayFetchTranslateAPITimer = setTimeout(() => {
       updateInputTempState(queryText);
     }, preferences.delayTransInterval || 800);
@@ -112,7 +116,7 @@ export default function Command() {
         });
         if (!hasLoading) {
           updateLoadingState(false);
-          if (preferences.enableHistory) {
+          if (preferences.enableHistory && transResultsNew.length) {
             const history: ITransHistory = {
               time: new Date().getTime(),
               from: transResultsNew[0].from.langId,
@@ -149,7 +153,7 @@ export default function Command() {
           )}
           <Action
             icon={Icon.ComputerChip}
-            title="Open iTranslate Preferences"
+            title="Open Command Preferences"
             shortcut={{ modifiers: ["cmd"], key: "p" }}
             onAction={openCommandPreferences}
           />
@@ -168,7 +172,7 @@ export default function Command() {
         )}
         <Action
           icon={Icon.ComputerChip}
-          title="Open iTranslate Preferences"
+          title="Open Command Preferences"
           shortcut={{ modifiers: ["cmd"], key: "p" }}
           onAction={openCommandPreferences}
         />
@@ -185,7 +189,7 @@ export default function Command() {
       onSearchTextChange={onInputChange}
       actions={ListActions()}
     >
-      <List.EmptyView title="Type something to translate..." />
+      <List.EmptyView title="Type something to translate..." icon={{ source: `no-view@${environment.theme}.png` }} />
       {transResultsState.length > 0 &&
         transResultsState.map((trans) => {
           return (
@@ -194,8 +198,8 @@ export default function Command() {
                 <TranslateError transRes={trans} />
               )}
               {trans.code === TransAPIErrCode.NotSupport && <TranslateNotSupport transRes={trans} />}
-              {trans.code === TransAPIErrCode.Success && <TranslateResult transRes={trans} />}
-              {trans.code === TransAPIErrCode.Loading && <TranslateResult transRes={trans} />}
+              {trans.code === TransAPIErrCode.Success && <TranslateResult transRes={trans} fromMultiple={true} />}
+              {trans.code === TransAPIErrCode.Loading && <TranslateResult transRes={trans} fromMultiple={true} />}
             </List.Section>
           );
         })}

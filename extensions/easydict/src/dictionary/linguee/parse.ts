@@ -2,7 +2,7 @@
  * @author: tisfeng
  * @createTime: 2022-08-01 10:44
  * @lastEditor: tisfeng
- * @lastEditTime: 2022-09-29 15:43
+ * @lastEditTime: 2022-10-08 00:08
  * @fileName: parse.ts
  *
  * Copyright (c) 2022 by tisfeng, All Rights Reserved.
@@ -10,7 +10,7 @@
 
 import { parse } from "node-html-parser";
 import { getLanguageEnglishName, getLanguageItemFromDeepLSourceCode } from "../../language/languages";
-import { DicionaryType, DisplaySection, ListDisplayItem, QueryTypeResult } from "../../types";
+import { DictionaryType, DisplaySection, ListDisplayItem, QueryTypeResult } from "../../types";
 import { checkIsWord } from "../../utils";
 import { QueryWordInfo } from "../youdao/types";
 import { getValidLingueeLanguagePair } from "./languages";
@@ -107,7 +107,7 @@ export function parseLingueeHTML(html: string): QueryTypeResult {
   queryWordInfo.isWord = hasEntries;
   const result = hasEntries ? lingueeResult : undefined;
   const lingueeTypeResult: QueryTypeResult = {
-    type: DicionaryType.Linguee,
+    type: DictionaryType.Linguee,
     result: result,
     translations: [],
     queryWordInfo: queryWordInfo,
@@ -213,7 +213,7 @@ function getWordItemList(lemmas: HTMLElement[] | undefined): LingueeWordItem[] {
         translationItems: allExplanations,
         audioUrl: audioUrl,
       };
-      // console.log(`---> word item: ${JSON.stringify(lingueeWordItem, null, 2)}`);
+      // console.log(`---> word item: ${JSON.stringify(lingueeWordItem, null, 4)}`);
       wordItemList.push(lingueeWordItem);
     }
   }
@@ -226,10 +226,10 @@ function getWordItemList(lemmas: HTMLElement[] | undefined): LingueeWordItem[] {
 function getWordExplanationList(
   translations: HTMLElement[] | undefined,
   isFeatured = false,
-  designatedFrequencey?: LingueeListItemType
+  designatedFrequency?: LingueeListItemType
 ) {
   // console.log(`---> getWordExplanationList, length: ${translations?.length} , isFeatured: ${isFeatured}`);
-  const explanationItems = [];
+  const explanationItems: LingueeWordExplanation[] = [];
   if (translations?.length) {
     for (const translation of translations) {
       // console.log(`---> translation: ${translation}`);
@@ -265,10 +265,10 @@ function getWordExplanationList(
         examples: exampleItems,
         frequencyTag: {
           tagForms: tag,
-          displayType: designatedFrequencey ?? wordFrequency,
+          displayType: designatedFrequency ?? wordFrequency,
         },
       };
-      // console.log(`---> explanation: ${JSON.stringify(explanation, null, 2)}`);
+      // console.log(`---> explanation: ${JSON.stringify(explanation, null, 4)}`);
       explanationItems.push(explanation);
     }
   }
@@ -315,12 +315,12 @@ function getTagFormsText(tagForms: Element | null): string {
  */
 function getExampleList(exampleLemma: HTMLElement[] | undefined) {
   console.log(`---> getExampleList`);
-  const exampleItems = [];
+  const exampleItems: LingueeExample[] = [];
   if (exampleLemma?.length) {
     for (const lemma of exampleLemma) {
       const exampleElement = lemma.querySelector(".line .dictLink");
       const tagType = lemma.querySelector(".line .tag_type");
-      const exmaple: LingueePosText = {
+      const example: LingueePosText = {
         pos: tagType?.textContent ?? "",
         text: exampleElement?.textContent ?? "",
       };
@@ -337,9 +337,9 @@ function getExampleList(exampleLemma: HTMLElement[] | undefined) {
           translations.push(translation);
         }
       });
-      // console.log(`---> translations: ${JSON.stringify(translations, null, 2)}`);
+      // console.log(`---> translations: ${JSON.stringify(translations, null, 4)}`);
       const lingueeExample: LingueeExample = {
-        example: exmaple,
+        example: example,
         translations: translations,
       };
       exampleItems.push(lingueeExample);
@@ -367,7 +367,7 @@ function getWikipedia(abstractElement: HTMLElement[] | undefined) {
         source: source?.textContent ?? "",
         sourceUrl: sourceUrl ?? "",
       };
-      // console.log(`---> wikipedia: ${JSON.stringify(wikipedia, null, 2)}`);
+      // console.log(`---> wikipedia: ${JSON.stringify(wikipedia, null, 4)}`);
       wikipedias.push(wikipedia);
     }
   }
@@ -413,7 +413,7 @@ export function getLingueeWebDictionaryURL(queryWordInfo: QueryWordInfo): string
 }
 
 /**
- * Formate linguee display result
+ * Format linguee display result
  */
 export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult): DisplaySection[] {
   const displayResults: DisplaySection[] = [];
@@ -423,7 +423,7 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
 
   const { queryWordInfo, wordItems, examples, relatedWords, wikipedias } =
     lingueeTypeResult.result as LingueeDictionaryResult;
-  const lingueeType = DicionaryType.Linguee;
+  const lingueeType = DictionaryType.Linguee;
 
   // add a Linguee flag section
   const word = queryWordInfo.word;
@@ -465,7 +465,7 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
       }
       const placeholderText = wordItem.placeholder ? ` ${wordItem.placeholder}` : "";
       const sectionTitle = `${wordItem.word}${placeholderText}${wordPos}`;
-      const displayItems = [];
+      const displayItems: ListDisplayItem[] = [];
       if (wordItem.translationItems) {
         for (const explanationItem of wordItem.translationItems) {
           // 1. iterate featured explanation
@@ -500,7 +500,7 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
         }
 
         // 2. iterate unfeatured explanation, and put them to array
-        const unfeaturedExplanations = [];
+        const unfeaturedExplanations: string[] = [];
         if (wordItem.translationItems) {
           for (const explanationItem of wordItem.translationItems) {
             if (!explanationItem.featured) {
@@ -510,9 +510,10 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
           }
         }
         if (unfeaturedExplanations.length > 0) {
-          const copyText = `${wordItem.pos} ${unfeaturedExplanations.join(" ")}`;
           const lastExplanationItem = wordItem.translationItems.at(-1);
           const pos = lastExplanationItem?.pos ? `${lastExplanationItem.pos}.` : "";
+          const subtitleText = unfeaturedExplanations.join(";  ");
+          const copyText = `${pos} ${subtitleText}`;
           const lessCommonNote =
             lastExplanationItem?.frequencyTag.displayType === LingueeListItemType.LessCommon
               ? `(${LingueeListItemType.LessCommon})`
@@ -522,7 +523,7 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
           const unFeaturedDisplayItem: ListDisplayItem = {
             key: copyText,
             title: pos,
-            subtitle: `${unfeaturedExplanations.join(";  ")}  ${lessCommonNote.toLowerCase()}`,
+            subtitle: `${subtitleText}  ${lessCommonNote.toLowerCase()}`,
             copyText: copyText,
             queryWordInfo: queryWordInfo,
             displayType: displayType,
@@ -564,11 +565,11 @@ export function formatLingueeDisplaySections(lingueeTypeResult: QueryTypeResult)
       return displayItem;
     });
     const exampleSection: DisplaySection = {
-      type: DicionaryType.Linguee,
+      type: DictionaryType.Linguee,
       sectionTitle: sectionTitle,
       items: displayItems.slice(0, 3), // show up to 3 examples.
     };
-    // console.log(`---> linguee exampleSection: ${JSON.stringify(exampleSection, null, 2)}`);
+    // console.log(`---> linguee exampleSection: ${JSON.stringify(exampleSection, null, 4)}`);
     displayResults.push(exampleSection);
   }
 

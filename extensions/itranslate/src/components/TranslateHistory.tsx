@@ -1,6 +1,17 @@
-import { Action, ActionPanel, Alert, Color, confirmAlert, Icon, List, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Alert,
+  Color,
+  confirmAlert,
+  environment,
+  Icon,
+  List,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { TRANS_SERVICES_NAMES } from "../common/const";
-import { clearAllHistory, getHistories, getLang, say } from "../common/itranslate.shared";
+import { clearAllHistory, getHistories, getLang } from "../common/itranslate.shared";
 import { useEffect, useState } from "react";
 
 export function TranslateHistory() {
@@ -41,6 +52,7 @@ export function TranslateHistory() {
                 key={tran.to}
                 title={`-> ${getLang(tran.to).langTitle}`}
                 text={tran.res}
+                icon={tran.res ? null : { source: Icon.XMarkCircle, tintColor: Color.Red }}
               />
             );
           })}
@@ -60,6 +72,7 @@ export function TranslateHistory() {
                 key={tran.serviceProvider}
                 title={TRANS_SERVICES_NAMES.get(tran.serviceProvider) || ""}
                 text={tran.res}
+                icon={tran.res ? null : { source: Icon.XMarkCircle, tintColor: Color.Red }}
               />
             );
           })}
@@ -99,7 +112,7 @@ export function TranslateHistory() {
 
   return (
     <List isLoading={isLoadingState} isShowingDetail={historiesState.length !== 0}>
-      <List.EmptyView title="No translation histories..." />
+      <List.EmptyView title="No translation histories..." icon={{ source: `no-view@${environment.theme}.png` }} />
       {historiesState.map((history) => {
         return (
           <List.Item
@@ -111,12 +124,6 @@ export function TranslateHistory() {
               <ActionPanel>
                 <CopyResSubmenu history={history} />
                 <Action.CopyToClipboard title="Copy Source to Clipboard" content={history.text} />
-                <Action
-                  title="Play Source Sound"
-                  icon={Icon.SpeakerOn}
-                  shortcut={{ modifiers: ["cmd"], key: "o" }}
-                  onAction={() => say(history.text, getLang(history.from))}
-                />
                 <Action
                   icon={{ source: Icon.Trash, tintColor: Color.Red }}
                   title="Clear All Histories"

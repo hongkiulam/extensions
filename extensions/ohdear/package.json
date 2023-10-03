@@ -5,8 +5,11 @@
   "description": "Manage your Oh Dear sites easy directly from Raycast",
   "icon": "command-icon.png",
   "author": "andreaselia",
+  "owner": "oh-dear",
+  "access": "public",
   "contributors": [
-    "pernielsentikaer"
+    "pernielsentikaer",
+    "Hodglim"
   ],
   "categories": [
     "Web",

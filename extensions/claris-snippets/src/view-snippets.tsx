@@ -2,10 +2,10 @@ import {
   Action,
   ActionPanel,
   Alert,
-  Clipboard,
   closeMainWindow,
   confirmAlert,
   Icon,
+  LaunchProps,
   List,
   showHUD,
   showToast,
@@ -13,16 +13,28 @@ import {
   useNavigation,
 } from "@raycast/api";
 import { deleteSnippetFile, loadAllSnippets } from "./utils/snippets";
-import { Location, snippetTypesMap } from "./utils/types";
+import { Location, Snippet, snippetTypesMap, zLaunchContext } from "./utils/types";
 import { useCachedPromise, useCachedState } from "@raycast/utils";
 import CreateSnippet from "./create-snippet";
 import { XMLToFMObjects } from "./utils/FmClipTools";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import EditSnippet from "./components/edit-snippet";
 import { uniqBy } from "lodash";
+import EditSnippetXML from "./components/edit-snippet-xml";
+import DynamicFieldsList from "./components/dynamic-fields-list";
+import DynamicSnippetForm from "./components/dynamic-snippet.form";
 
-export default function Command() {
+export default function Command(props: LaunchProps) {
   const [locations] = useCachedState<Location[]>("locations", []);
+  const [loadedContext, setLoadedContext] = useState(false);
+  const { push } = useNavigation();
+  const locationMap = useMemo(() => {
+    const map: Record<string, Location> = {};
+    locations.forEach((location) => {
+      map[location.id] = location;
+    });
+    return map;
+  }, [locations]);
   const {
     data: snippets,
     isLoading,
@@ -30,6 +42,45 @@ export default function Command() {
   } = useCachedPromise(async () => loadAllSnippets(locations), [], { initialData: [] });
   const [pathFilter, setPathFilter] = useState<"all" | "default" | Location>("all");
   const { pop } = useNavigation();
+
+  useEffect(() => {
+    if (loadedContext) return;
+    if (isLoading) return;
+    if (snippets.length === 0) return;
+    if (props.launchContext === undefined) return;
+
+    // only run the rest of this function once
+    setLoadedContext(true);
+
+    // try to get info from launch context
+    const parsed = zLaunchContext.safeParse(props.launchContext);
+    if (!parsed.success) {
+      console.error("Failed to parse launch context", parsed.error.issues);
+      return;
+    }
+
+    const ctx = parsed.data;
+    const snippet = snippets.find((o) => o.id === ctx.id);
+    if (!snippet) {
+      console.error("Failed to find snippet for launch context", ctx);
+      return;
+    }
+
+    // inject the values into the snippet's default values
+    Object.entries(ctx.values).forEach(([key, value]) => {
+      const i = snippet.dynamicFields.findIndex((f) => f.name === key);
+      if (i < 0) return;
+      snippet.dynamicFields[i].default = value;
+    });
+
+    if (ctx.showForm) {
+      push(<DynamicSnippetForm snippet={snippet} />);
+    } else {
+      console.log("copying snippet in background", snippet.dynamicFields);
+    }
+
+    // console.log("Launching snippet", snippet.dynamicFields);
+  }, [snippets, isLoading, loadedContext]);
 
   function CreateSnippetAction() {
     return (
@@ -94,6 +145,7 @@ export default function Command() {
             key={snippet.id}
             id={snippet.id}
             keywords={snippet.tags}
+            accessories={getAccessories(snippet)}
             detail={
               <List.Item.Detail
                 markdown={`${snippet.description === "" ? "*No Description*" : snippet.description}
@@ -126,25 +178,33 @@ ${snippet.snippet}`}
             actions={
               <ActionPanel>
                 <ActionPanel.Section>
-                  <Action
-                    title="Copy Snippet"
-                    icon={Icon.Clipboard}
-                    shortcut={{ key: "c", modifiers: ["cmd"] }}
-                    onAction={async () => {
-                      await Clipboard.copy(snippet.snippet);
-                      try {
-                        XMLToFMObjects();
-                        closeMainWindow();
-                        showHUD("Copied to Clipboard");
-                      } catch (e) {
-                        showToast({
-                          title: "Error",
-                          style: Toast.Style.Failure,
-                          message: e instanceof Error ? e.message : "Unknown error",
-                        });
-                      }
-                    }}
-                  />
+                  {snippet.dynamicFields.length > 0 ? (
+                    <Action.Push
+                      title="Load Snippet Form"
+                      icon={Icon.Clipboard}
+                      shortcut={{ key: "c", modifiers: ["cmd"] }}
+                      target={<DynamicSnippetForm snippet={snippet} />}
+                    />
+                  ) : (
+                    <Action
+                      title="Copy Snippet"
+                      icon={Icon.Clipboard}
+                      shortcut={{ key: "c", modifiers: ["cmd"] }}
+                      onAction={async () => {
+                        try {
+                          await XMLToFMObjects(snippet.snippet);
+                          closeMainWindow();
+                          showHUD("Copied to Clipboard");
+                        } catch (e) {
+                          showToast({
+                            title: "Error",
+                            style: Toast.Style.Failure,
+                            message: e instanceof Error ? e.message : "Unknown error",
+                          });
+                        }
+                      }}
+                    />
+                  )}
                   <Action.CopyToClipboard
                     title="Copy Raw Text"
                     icon={Icon.Text}
@@ -153,19 +213,27 @@ ${snippet.snippet}`}
                   />
                 </ActionPanel.Section>
                 <ActionPanel.Section>
+                  {locationMap[snippet.locId]?.git || (
+                    <Action.Push
+                      title="Edit Snippet"
+                      icon={Icon.Pencil}
+                      shortcut={{ key: "e", modifiers: ["cmd"] }}
+                      target={
+                        <EditSnippet
+                          onSubmit={() => {
+                            revalidate();
+                            pop();
+                          }}
+                          snippet={snippet}
+                        />
+                      }
+                    />
+                  )}
                   <Action.Push
-                    title="Edit Snippet"
-                    icon={Icon.Pencil}
-                    shortcut={{ key: "e", modifiers: ["cmd"] }}
-                    target={
-                      <EditSnippet
-                        onSubmit={() => {
-                          revalidate();
-                          pop();
-                        }}
-                        snippet={snippet}
-                      />
-                    }
+                    title="Manage Dynamc Fields"
+                    shortcut={{ key: "d", modifiers: ["opt"] }}
+                    icon={Icon.Stars}
+                    target={<DynamicFieldsList snippet={snippet} revalidate={revalidate} />}
                   />
                   <Action.Push
                     title="Duplicate Snippet"
@@ -177,7 +245,11 @@ ${snippet.snippet}`}
                           revalidate();
                           pop();
                         }}
-                        snippet={{ ...snippet, id: undefined }}
+                        snippet={{
+                          ...snippet,
+                          id: undefined,
+                          locId: locationMap[snippet.locId]?.git ? "default" : snippet.locId,
+                        }}
                       />
                     }
                   />
@@ -190,36 +262,59 @@ ${snippet.snippet}`}
                     icon={Icon.Finder}
                     shortcut={{ key: "r", modifiers: ["cmd", "opt"] }}
                   />
+                  <Action.CopyToClipboard content={snippet.id} title="Copy Snippet ID" icon={Icon.Clipboard} />
+                  {locationMap[snippet.locId]?.git || (
+                    <Action.Push
+                      title="Edit Snippet XML"
+                      icon={Icon.Dna}
+                      target={
+                        <EditSnippetXML
+                          onSubmit={() => {
+                            revalidate();
+                            pop();
+                          }}
+                          snippet={snippet}
+                        />
+                      }
+                    />
+                  )}
                   {/* <Action
                     title="Export Snippet"
                     icon={Icon.Upload}
                     shortcut={{ key: "e", modifiers: ["cmd", "shift"] }}
                   /> */}
                 </ActionPanel.Section>
-                <ActionPanel.Section>
-                  <Action
-                    title="Delete Snippet"
-                    icon={Icon.Trash}
-                    shortcut={{ key: "delete", modifiers: ["cmd"] }}
-                    style={Action.Style.Destructive}
-                    onAction={async () => {
-                      if (
-                        await confirmAlert({
-                          title: "Are you sure?",
-                          message: "This will permanently delete the snippet. This cannot be undone.",
-                          primaryAction: { style: Alert.ActionStyle.Destructive, title: "Delete" },
-                        })
-                      ) {
-                        deleteSnippetFile(snippet);
-                        revalidate();
-                      }
-                    }}
-                  />
-                </ActionPanel.Section>
+                {locationMap[snippet.locId]?.git || (
+                  <ActionPanel.Section>
+                    <Action
+                      title="Delete Snippet"
+                      icon={Icon.Trash}
+                      shortcut={{ key: "delete", modifiers: ["cmd"] }}
+                      style={Action.Style.Destructive}
+                      onAction={async () => {
+                        if (
+                          await confirmAlert({
+                            title: "Are you sure?",
+                            message: "This will permanently delete the snippet. This cannot be undone.",
+                            primaryAction: { style: Alert.ActionStyle.Destructive, title: "Delete" },
+                          })
+                        ) {
+                          deleteSnippetFile(snippet);
+                          revalidate();
+                        }
+                      }}
+                    />
+                  </ActionPanel.Section>
+                )}
               </ActionPanel>
             }
           />
         ))}
     </List>
   );
+}
+
+function getAccessories(snippet: Snippet): List.Item.Accessory[] {
+  if (snippet.dynamicFields.length === 0) return [];
+  return [{ icon: Icon.Stars, text: snippet.dynamicFields.length.toString() }];
 }

@@ -5,7 +5,7 @@ import {
   ActionPanel,
   Action,
   Icon,
-  openCommandPreferences,
+  openExtensionPreferences,
 } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { TransAPIErrCode } from "./common/const";
@@ -20,6 +20,7 @@ import {
 import { TranslateError, TranslateNotSupport } from "./components/TranslateError";
 import { TranslateHistory } from "./components/TranslateHistory";
 import { TranslateResult } from "./components/TranslateResult";
+import { environment } from "@raycast/api";
 
 let delayFetchTranslateAPITimer: NodeJS.Timeout;
 
@@ -57,17 +58,20 @@ export default function Command() {
       .then((selectedText) => {
         const text = selectedText.trim();
         if (text.length > 0) {
-          updateInputState(text);
-          updateInputTempState(text);
+          onInputChange(text, true);
         }
       })
       .catch((e) => e);
   }
 
-  function onInputChange(queryText: string) {
+  function onInputChange(queryText: string, immediately?: boolean) {
     updateLoadingState(false);
     updateInputState(queryText);
     clearTimeout(delayFetchTranslateAPITimer);
+    if (immediately) {
+      updateInputTempState(queryText);
+      return;
+    }
     delayFetchTranslateAPITimer = setTimeout(() => {
       updateInputTempState(queryText);
     }, preferences.delayTransInterval || 800);
@@ -119,7 +123,7 @@ export default function Command() {
         });
         if (!hasLoading) {
           updateLoadingState(false);
-          if (preferences.enableHistory) {
+          if (preferences.enableHistory && transResultsNew.length) {
             const history: ITransHistory = {
               time: new Date().getTime(),
               from: transResultsNew[0].from.langId,
@@ -157,7 +161,7 @@ export default function Command() {
             icon={Icon.ComputerChip}
             title="Open iTranslate Preferences"
             shortcut={{ modifiers: ["cmd"], key: "p" }}
-            onAction={openCommandPreferences}
+            onAction={openExtensionPreferences}
           />
         </ActionPanel>
       );
@@ -176,7 +180,7 @@ export default function Command() {
           icon={Icon.ComputerChip}
           title="Open iTranslate Preferences"
           shortcut={{ modifiers: ["cmd"], key: "p" }}
-          onAction={openCommandPreferences}
+          onAction={openExtensionPreferences}
         />
       </ActionPanel>
     );
@@ -191,20 +195,16 @@ export default function Command() {
       onSearchTextChange={onInputChange}
       actions={ListActions()}
     >
-      <List.EmptyView title="Type something to translate..." />
-      {transResultsState.length > 0 && (
-        <List.Section title={`${transResultsState[0].from.langTitle} -> ${transResultsState[0].to.langTitle}`}>
-          {transResultsState.map((transRes) => {
-            if (transRes.code === TransAPIErrCode.Fail || transRes.code === TransAPIErrCode.Retry) {
-              return <TranslateError key={transRes.serviceProvider} transRes={transRes} />;
-            } else if (transRes.code === TransAPIErrCode.NotSupport) {
-              return <TranslateNotSupport key={transRes.serviceProvider} transRes={transRes} />;
-            } else {
-              return <TranslateResult key={transRes.serviceProvider} transRes={transRes} onLangUpdate={translate} />;
-            }
-          })}
-        </List.Section>
-      )}
+      <List.EmptyView title="Type something to translate..." icon={{ source: `no-view@${environment.theme}.png` }} />
+      {transResultsState.map((transRes) => {
+        if (transRes.code === TransAPIErrCode.Fail || transRes.code === TransAPIErrCode.Retry) {
+          return <TranslateError key={transRes.serviceProvider} transRes={transRes} />;
+        } else if (transRes.code === TransAPIErrCode.NotSupport) {
+          return <TranslateNotSupport key={transRes.serviceProvider} transRes={transRes} />;
+        } else {
+          return <TranslateResult key={transRes.serviceProvider} transRes={transRes} onLangUpdate={translate} />;
+        }
+      })}
     </List>
   );
 }
